@@ -1,5 +1,7 @@
 package master2017.flink.model;
 
+import master2017.flink.utils.CsvFieldJoin;
+
 import java.io.Serializable;
 
 public class CarEvent {
@@ -89,5 +91,10 @@ public class CarEvent {
         this.dir = dir;
         this.seg = seg;
         this.pos = pos;
+    }
+
+    @Override
+    public String toString() {
+        return (new CsvFieldJoin<Integer>().join(time, vid, spd, xway, lane, dir, seg, pos));
     }
 }

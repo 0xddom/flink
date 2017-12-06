@@ -1,18 +1,20 @@
 package master2017.flink;
 
-import master2017.flink.functions.filter.FilterSpeedLimitsInCarEvents;
-import master2017.flink.functions.map.MarCarEventToSpeedFineEvent;
 import master2017.flink.model.CarEvent;
-import master2017.flink.model.SpeedFineEvent;
+import master2017.flink.plans.AvgSpeedFinesPlan;
+import master2017.flink.plans.Plan;
+import master2017.flink.plans.SpeedFinesPlan;
+import master2017.flink.utils.FileSink;
 import master2017.flink.utils.ResourceLocations;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
-import org.apache.flink.core.fs.FileSystem;
 
-public class VehicleTelematics implements Runnable {
+public class VehicleTelematics {
 
     private ResourceLocations locations;
     private ExecutionEnvironment env;
+
+    private final String PROCESS_NAME = "Car telematics Flink process";
 
     private VehicleTelematics(String... args) {
         if (args.length < 2) {
@@ -24,26 +26,25 @@ public class VehicleTelematics implements Runnable {
     }
 
     public static void main(String... args) throws Exception {
-        (new VehicleTelematics(args)).run();
+        try {
+            (new VehicleTelematics(args)).run();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
-    @Override
-    public void run() {
+    private void run() throws Exception {
         DataSet<CarEvent> carEvents = this.env.readCsvFile(this.locations.getInputFile())
                 .pojoType(CarEvent.class,
                         "time", "vid", "spd", "xway", "lane", "dir", "seg", "pos");
 
-        DataSet<SpeedFineEvent> speedfineEvents = carEvents
-                .filter(new FilterSpeedLimitsInCarEvents(90))
-                .map(new MarCarEventToSpeedFineEvent());
+        sinkPlan(new SpeedFinesPlan(), carEvents, locations.getSpeedFinesCsv());
+        sinkPlan(new AvgSpeedFinesPlan(), carEvents, locations.getAvgSpeedFinesCsv());
 
-        speedfineEvents.writeAsText(locations.getSpeedFinesCsv(), FileSystem.WriteMode.OVERWRITE);
+        env.execute(PROCESS_NAME);
+    }
 
-
-        try {
-            env.execute("Car telematics process");
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+    private void sinkPlan(Plan plan, DataSet<CarEvent> input, String filePath) {
+        (new FileSink<>(plan.plan(input))).write(filePath);
     }
 }
