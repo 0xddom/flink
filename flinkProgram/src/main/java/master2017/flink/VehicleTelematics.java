@@ -3,12 +3,16 @@ package master2017.flink;
 import master2017.flink.functions.filter.FilterEventsInSpeedControlSegment;
 import master2017.flink.functions.filter.FilterSpeedLimitsInCarEvents;
 import master2017.flink.functions.filter.FliterNotCompleteSegments;
+import master2017.flink.functions.map.FlatMapAccidentEvents;
 import master2017.flink.functions.map.MarCarEventToSpeedFineEvent;
+import master2017.flink.functions.reduce.GroupAccidentEvents;
 import master2017.flink.functions.reduce.GroupVisitedSegments;
+import master2017.flink.model.AccidentsEvent;
 import master2017.flink.model.AvgSpeedFinesEvent;
 import master2017.flink.model.CarEvent;
 import master2017.flink.model.SpeedFineEvent;
 import master2017.flink.utils.ResourceLocations;
+import org.apache.flink.api.common.operators.Order;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.core.fs.FileSystem;
@@ -54,6 +58,13 @@ public class VehicleTelematics implements Runnable {
                 .reduceGroup(new GroupVisitedSegments())
                 .filter(new FliterNotCompleteSegments(AVG_SPEED_CONTROL_MIN_SEG, AVG_SPEED_CONTROL_MAX_SEG, AVG_SPEED_CONTROL_LIMIT_SPEED));
         avgSpeedEvents.writeAsText(locations.getAvgSpeedFinesCsv(), FileSystem.WriteMode.OVERWRITE);
+
+        DataSet<AccidentsEvent> accidentsEvents = carEvents
+                .groupBy("vid", "xway", "lane", "dir", "seg", "pos")
+                .sortGroup("time", Order.ASCENDING)
+                .reduceGroup(new GroupAccidentEvents())
+                .flatMap(new FlatMapAccidentEvents());
+        accidentsEvents.writeAsText(locations.getAccidentsCsv(), FileSystem.WriteMode.OVERWRITE);
 
         try {
             env.execute("Car telematics process");
