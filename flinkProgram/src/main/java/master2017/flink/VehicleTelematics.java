@@ -1,7 +1,11 @@
 package master2017.flink;
 
+import master2017.flink.functions.filter.FilterEventsInSpeedControlSegment;
 import master2017.flink.functions.filter.FilterSpeedLimitsInCarEvents;
+import master2017.flink.functions.filter.FliterNotCompleteSegments;
 import master2017.flink.functions.map.MarCarEventToSpeedFineEvent;
+import master2017.flink.functions.reduce.GroupVisitedSegments;
+import master2017.flink.model.AvgSpeedFinesEvent;
 import master2017.flink.model.CarEvent;
 import master2017.flink.model.SpeedFineEvent;
 import master2017.flink.utils.ResourceLocations;
@@ -13,6 +17,11 @@ public class VehicleTelematics implements Runnable {
 
     private ResourceLocations locations;
     private ExecutionEnvironment env;
+    private final static int SPEED_LIMIT_SPEED = 90;
+
+    private final static int AVG_SPEED_CONTROL_MIN_SEG = 52;
+    private final static int AVG_SPEED_CONTROL_MAX_SEG = 56;
+    private final static int AVG_SPEED_CONTROL_LIMIT_SPEED = 60;
 
     private VehicleTelematics(String... args) {
         if (args.length < 2) {
@@ -29,16 +38,22 @@ public class VehicleTelematics implements Runnable {
 
     @Override
     public void run() {
-        DataSet<CarEvent> carEvents = this.env.readCsvFile(this.locations.getInputFile())
+        DataSet<CarEvent> carEvents = this.env.readCsvFile(locations.getInputFile())
                 .pojoType(CarEvent.class,
                         "time", "vid", "spd", "xway", "lane", "dir", "seg", "pos");
 
         DataSet<SpeedFineEvent> speedfineEvents = carEvents
-                .filter(new FilterSpeedLimitsInCarEvents(90))
+                .filter(new FilterSpeedLimitsInCarEvents(SPEED_LIMIT_SPEED))
                 .map(new MarCarEventToSpeedFineEvent());
 
         speedfineEvents.writeAsText(locations.getSpeedFinesCsv(), FileSystem.WriteMode.OVERWRITE);
 
+        DataSet<AvgSpeedFinesEvent> avgSpeedEvents = carEvents
+                .filter(new FilterEventsInSpeedControlSegment(AVG_SPEED_CONTROL_MIN_SEG, AVG_SPEED_CONTROL_MAX_SEG))
+                .groupBy("vid")
+                .reduceGroup(new GroupVisitedSegments())
+                .filter(new FliterNotCompleteSegments(AVG_SPEED_CONTROL_MIN_SEG, AVG_SPEED_CONTROL_MAX_SEG, AVG_SPEED_CONTROL_LIMIT_SPEED));
+        avgSpeedEvents.writeAsText(locations.getAvgSpeedFinesCsv(), FileSystem.WriteMode.OVERWRITE);
 
         try {
             env.execute("Car telematics process");
