@@ -25,7 +25,7 @@ public class VehicleTelematics implements Runnable {
 
     private VehicleTelematics(String... args) {
         if (args.length < 2) {
-            throw new IllegalArgumentException("Not enough arguments");
+            throw new IllegalArgumentException("[USAGE] <input file> <output dir>");
         }
         this.locations = new ResourceLocations(args[0], args[1]);
         this.env = ExecutionEnvironment.getExecutionEnvironment();
