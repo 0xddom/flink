@@ -1,18 +1,33 @@
 package master2017.flink;
 
+
+import master2017.flink.functions.filter.FilterEventsInSpeedControlSegment;
+import master2017.flink.functions.filter.FilterSpeedLimitsInCarEvents;
+import master2017.flink.functions.filter.FliterNotCompleteSegments;
+import master2017.flink.functions.map.FlatMapAccidentEvents;
+import master2017.flink.functions.map.MarCarEventToSpeedFineEvent;
+import master2017.flink.functions.reduce.GroupAccidentEvents;
+import master2017.flink.functions.reduce.GroupVisitedSegments;
+import master2017.flink.model.AccidentsEvent;
+import master2017.flink.model.AvgSpeedFinesEvent;
+
 import master2017.flink.model.CarEvent;
-import master2017.flink.plans.AvgSpeedFinesPlan;
-import master2017.flink.plans.Plan;
-import master2017.flink.plans.SpeedFinesPlan;
-import master2017.flink.utils.FileSink;
+import master2017.flink.model.SpeedFineEvent;
 import master2017.flink.utils.ResourceLocations;
+import org.apache.flink.api.common.operators.Order;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
+import org.apache.flink.core.fs.FileSystem;
 
 public class VehicleTelematics {
 
     private ResourceLocations locations;
     private ExecutionEnvironment env;
+    private final static int SPEED_LIMIT_SPEED = 90;
+
+    private final static int AVG_SPEED_CONTROL_MIN_SEG = 52;
+    private final static int AVG_SPEED_CONTROL_MAX_SEG = 56;
+    private final static int AVG_SPEED_CONTROL_LIMIT_SPEED = 60;
 
     private final String PROCESS_NAME = "Car telematics Flink process";
 
@@ -33,18 +48,29 @@ public class VehicleTelematics {
         }
     }
 
-    private void run() throws Exception {
-        DataSet<CarEvent> carEvents = this.env.readCsvFile(this.locations.getInputFile())
+    public void run() {
+        DataSet<CarEvent> carEvents = this.env.readCsvFile(locations.getInputFile())
                 .pojoType(CarEvent.class,
                         "time", "vid", "spd", "xway", "lane", "dir", "seg", "pos");
 
-        sinkPlan(new SpeedFinesPlan(), carEvents, locations.getSpeedFinesCsv());
-        sinkPlan(new AvgSpeedFinesPlan(), carEvents, locations.getAvgSpeedFinesCsv());
+        DataSet<SpeedFineEvent> speedfineEvents = carEvents
+                .filter(new FilterSpeedLimitsInCarEvents(SPEED_LIMIT_SPEED))
+                .map(new MarCarEventToSpeedFineEvent());
 
-        env.execute(PROCESS_NAME);
-    }
+        speedfineEvents.writeAsText(locations.getSpeedFinesCsv(), FileSystem.WriteMode.OVERWRITE);
 
-    private void sinkPlan(Plan plan, DataSet<CarEvent> input, String filePath) {
-        (new FileSink<>(plan.plan(input))).write(filePath);
+        DataSet<AvgSpeedFinesEvent> avgSpeedEvents = carEvents
+                .filter(new FilterEventsInSpeedControlSegment(AVG_SPEED_CONTROL_MIN_SEG, AVG_SPEED_CONTROL_MAX_SEG))
+                .groupBy("vid")
+                .reduceGroup(new GroupVisitedSegments())
+                .filter(new FliterNotCompleteSegments(AVG_SPEED_CONTROL_MIN_SEG, AVG_SPEED_CONTROL_MAX_SEG, AVG_SPEED_CONTROL_LIMIT_SPEED));
+        avgSpeedEvents.writeAsText(locations.getAvgSpeedFinesCsv(), FileSystem.WriteMode.OVERWRITE);
+
+        DataSet<AccidentsEvent> accidentsEvents = carEvents
+                .groupBy("vid", "xway", "lane", "dir", "seg", "pos")
+                .sortGroup("time", Order.ASCENDING)
+                .reduceGroup(new GroupAccidentEvents())
+                .flatMap(new FlatMapAccidentEvents());
+        accidentsEvents.writeAsText(locations.getAccidentsCsv(), FileSystem.WriteMode.OVERWRITE);
     }
 }
