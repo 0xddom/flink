@@ -16,6 +16,8 @@ public class FliterNotCompleteSegments implements FilterFunction<AvgSpeedFinesEv
 
     @Override
     public boolean filter(AvgSpeedFinesEvent avgSpeedFinesEvent) throws Exception {
-        return avgSpeedFinesEvent.getMinSeg() == startSegment && avgSpeedFinesEvent.getMaxSeg() == endSegment && avgSpeedFinesEvent.getAvgSpd() > speedLimit;
+        return avgSpeedFinesEvent.getMinSeg() == startSegment
+                && avgSpeedFinesEvent.getMaxSeg() == endSegment
+                && avgSpeedFinesEvent.getAvgSpd() > speedLimit;
     }
 }

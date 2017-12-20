@@ -12,6 +12,6 @@ public class FilterSpeedLimitsInCarEvents implements FilterFunction<CarEvent> {
 
     @Override
     public boolean filter(CarEvent event) throws Exception {
-        return event.getSpd() > this.speedLimit;
+        return event.getSpd() >= this.speedLimit;
     }
 }

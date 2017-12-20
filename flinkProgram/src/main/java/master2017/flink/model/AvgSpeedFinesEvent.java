@@ -2,6 +2,9 @@ package master2017.flink.model;
 
 import master2017.flink.utils.CsvFieldJoin;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class AvgSpeedFinesEvent {
     private int time1;
     private int time2;
@@ -11,8 +14,10 @@ public class AvgSpeedFinesEvent {
     private int xWay;
     private int dir;
     private int avgSpd;
+    private List<Integer> speeds;
 
     public AvgSpeedFinesEvent() {
+        this.speeds = new ArrayList<>();
     }
 
     public AvgSpeedFinesEvent(int time1, int time2, int minSeg, int maxSeg, int vid, int xWay, int dir, int avgSpd) {
@@ -24,10 +29,15 @@ public class AvgSpeedFinesEvent {
         this.xWay = xWay;
         this.dir = dir;
         this.avgSpd = avgSpd;
+        this.speeds = new ArrayList<>();
+    }
+
+    public void addSpeed(int spd) {
+        this.speeds.add(spd);
     }
 
     public static AvgSpeedFinesEvent fromCarEvent(CarEvent event) {
-        return new AvgSpeedFinesEvent(
+        AvgSpeedFinesEvent avg = new AvgSpeedFinesEvent(
                 event.getTime(),
                 event.getTime(),
                 event.getSeg(),
@@ -37,6 +47,8 @@ public class AvgSpeedFinesEvent {
                 event.getDir(),
                 event.getSpd()
         );
+        avg.addSpeed(event.getSpd());
+        return avg;
     }
 
     public int getTime1() {
@@ -82,11 +94,15 @@ public class AvgSpeedFinesEvent {
     }
 
     public int getAvgSpd() {
-        return avgSpd;
+        double acc = 0.0;
+        for (int spd : speeds) acc += spd;
+
+        return avgSpd = (int)Math.floor(acc / speeds.size());
     }
 
     public void setAvgSpd(int avgSpd) {
-        this.avgSpd = (avgSpd + this.avgSpd) / 2;
+        //this.avgSpd = (avgSpd + this.avgSpd) / 2;
+        this.avgSpd = avgSpd; //?
     }
 
     public int getMinSeg() {
@@ -109,6 +125,6 @@ public class AvgSpeedFinesEvent {
 
     @Override
     public String toString() {
-        return (new CsvFieldJoin<Integer>()).join(time1, time2, vid, xWay, dir, avgSpd);
+        return (new CsvFieldJoin<Integer>()).join(time1, time2, vid, xWay, dir, getAvgSpd());
     }
 }

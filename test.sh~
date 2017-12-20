@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+rm tests/speedfines.csv
+rm tests/avgspeedfines.csv
+rm tests/accidents.csv
+
+input=tests/avgspeedfines1.csv

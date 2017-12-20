@@ -8,22 +8,46 @@ import org.apache.flink.util.Collector;
 
 
 public class GroupVisitedSegments implements GroupReduceFunction<CarEvent, AvgSpeedFinesEvent> {
+    private int lower, upper;
+
+    public GroupVisitedSegments(int lower, int upper) {
+        this.lower = lower;
+        this.upper = upper;
+
+    }
+
+    private boolean[] createCheckTable() {
+        boolean[] t = new boolean[this.upper - this.lower + 1];
+        for (int i = 0; i < t.length; i++) {
+            t[i] = false;
+        }
+        return t;
+    }
+
     @Override
     public void reduce(Iterable<CarEvent> iterable, Collector<AvgSpeedFinesEvent> collector) throws Exception {
-        // BUGGY. CHANGEME
-        AvgSpeedFinesEvent avg = new AvgSpeedFinesEvent();
-        for (CarEvent current : iterable) {
-            if (avg.getVid() == 0) {
-                avg = AvgSpeedFinesEvent.fromCarEvent(current);
+        AvgSpeedFinesEvent avg = null;
+        boolean[] table = createCheckTable();
+        for (CarEvent e : iterable) {
+            table[e.getSeg()-this.lower] = true;
+            if (avg == null) {
+                avg = AvgSpeedFinesEvent.fromCarEvent(e);
             } else {
-                avg.setTime1(current.getTime());
-                avg.setTime2(current.getTime());
-                avg.setAvgSpd(current.getSpd());
-                avg.setMinSeg(current.getSeg());
-                avg.setMaxSeg(current.getSeg());
+                avg.addSpeed(e.getSpd());
+                avg.setTime1(e.getTime());
+                avg.setTime2(e.getTime());
             }
         }
-        System.out.println(avg.getVid());
-        collector.collect(avg);
+
+        boolean visited = true;
+        for (boolean b : table) {
+            visited = b;
+            if (!visited) break;
+        }
+
+        if (visited) {
+            collector.collect(avg);
+        }
+
     }
 }
