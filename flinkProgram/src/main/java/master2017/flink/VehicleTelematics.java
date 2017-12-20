@@ -1,5 +1,6 @@
 package master2017.flink;
 
+import master2017.flink.functions.filter.FilterAvgSpedGreaterThanValue;
 import master2017.flink.functions.filter.FilterEventsInSpeedControlSegment;
 import master2017.flink.functions.filter.FilterSpeedLimitsInCarEvents;
 import master2017.flink.functions.filter.FliterNotCompleteSegments;
@@ -55,15 +56,17 @@ public class VehicleTelematics implements Runnable {
         DataSet<AvgSpeedFinesEvent> avgSpeedEvents = carEvents
                 .filter(new FilterEventsInSpeedControlSegment(AVG_SPEED_CONTROL_MIN_SEG, AVG_SPEED_CONTROL_MAX_SEG))
                 .groupBy("vid")
-                .reduceGroup(new GroupVisitedSegments())
-                .filter(new FliterNotCompleteSegments(AVG_SPEED_CONTROL_MIN_SEG, AVG_SPEED_CONTROL_MAX_SEG, AVG_SPEED_CONTROL_LIMIT_SPEED));
-        avgSpeedEvents.writeAsText(locations.getAvgSpeedFinesCsv(), FileSystem.WriteMode.OVERWRITE);
+                .reduceGroup(new GroupVisitedSegments(AVG_SPEED_CONTROL_MIN_SEG, AVG_SPEED_CONTROL_MAX_SEG))
+                .filter(new FilterAvgSpedGreaterThanValue(AVG_SPEED_CONTROL_LIMIT_SPEED));
 
+        avgSpeedEvents.writeAsText(locations.getAvgSpeedFinesCsv(), FileSystem.WriteMode.OVERWRITE);
+        
         DataSet<AccidentsEvent> accidentsEvents = carEvents
                 .groupBy("vid", "xway", "lane", "dir", "seg", "pos")
                 .sortGroup("time", Order.ASCENDING)
                 .reduceGroup(new GroupAccidentEvents())
                 .flatMap(new FlatMapAccidentEvents());
+
         accidentsEvents.writeAsText(locations.getAccidentsCsv(), FileSystem.WriteMode.OVERWRITE);
 
         try {
