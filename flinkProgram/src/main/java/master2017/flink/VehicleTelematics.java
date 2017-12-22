@@ -74,5 +74,11 @@ public class VehicleTelematics {
                 .flatMap(new FlatMapAccidentEvents());
 
         accidentsEvents.writeAsText(locations.getAccidentsCsv(), FileSystem.WriteMode.OVERWRITE);
+
+        try {
+            env.execute(PROCESS_NAME);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
